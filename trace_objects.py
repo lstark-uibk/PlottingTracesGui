@@ -4,6 +4,7 @@ import h5py
 import datetime
 from PyQt5.QtCore import QDateTime, Qt
 from PyQt5.QtWidgets import QListWidgetItem, QListWidget
+from PyQt5.QtGui import QColor
 import pyqtgraph as pg
 import re
 class Traces():
@@ -27,6 +28,7 @@ class Traces():
         self.MasslistElementsMasses = []
         self.MasslistCompositions = []
         self.Traces = np.array([])
+        self.FixedTraces = np.array([])
         self.filename = Filename
         self.starttime = startTime
         self.endtime = endTime
@@ -70,7 +72,7 @@ class Traces():
                 self.Timeindices = np.where(np.full(self.Times.shape, True))[0]
         return self.Times
 
-    def update_Traces(self, massesToLoad = "none"):
+    def load_Traces(self, massesToLoad = "none"):
         """
 
         :param filename:
@@ -80,13 +82,12 @@ class Traces():
         :param raw:
         :return:
         """
-
         filename = self.filename
         if isinstance(massesToLoad, np.ndarray) or isinstance(massesToLoad,(float,int)):
             Massestoloadindices = np.where(np.any((np.isclose(self.MasslistMasses[:, None], massesToLoad , rtol=1e-5, atol=1e-8)),axis=1))[0]
             if isinstance(massesToLoad,(float,int)):
                 Massestoloadindices = int(Massestoloadindices)
-            print(f"Loading Masses {massesToLoad}")
+            print(f"Loading Masses {massesToLoad} at indices, {Massestoloadindices}")
         else:
             if massesToLoad == "none":
                 print("No Masses to load selected")
@@ -130,10 +131,14 @@ class Traces():
                     else:
                         print("No high time resolution available, is this a average only file?")
                         ds = f["CorrAvgStickCps"]
+            Traces = ds[:, self.Timeindices][Massestoloadindices, :]
+            return Traces
+    def update_Traces(self, massesToLoad = "none"):
+            self.Traces = self.load_Traces(massesToLoad)
 
-            self.Traces = ds[:,self.Timeindices][Massestoloadindices,:]
 
-            return self.Traces
+
+
             # get all the indices of massesToLoad
 
 
@@ -146,7 +151,8 @@ class QlistWidget_Masslist(QListWidget):
         self.currentmasses = np.array([])
         self.currentcompositions = np.zeros((0, 8))
         self.load_on_tick = True
-
+        self.fixedMasses = np.array([])
+        self.fixedcompositions = np.zeros((0, 8))
 
 
 
@@ -248,6 +254,38 @@ class QlistWidget_Masslist(QListWidget):
         
         parent.tr.update_Traces(self.currentmasses)
         parent.update_plots()
+
+    def handle_double_click(self,item,parent):
+        print(f"Double-clicked: {item.text()}")
+        list = re.split(r'[ \t]+', item.text())
+        mass = float(list[1])
+        if not np.any(mass == self.fixedMasses):
+            # add the mass to fixed
+            item.setBackground(Qt.red)
+            if len(list) >= 3:
+                compoundstr = str(list[2])
+                if len(list) == 4:
+                    compoundstr += str(list[3])
+                _,compositionarray = get_element_numbers_out_of_names(compoundstr)
+            self.fixedMasses = np.append(self.fixedMasses,mass)
+            self.fixedcompositions = np.append(self.fixedcompositions, compositionarray[None,:], axis=0)
+            Trace = parent.tr.load_Traces(mass)
+            if parent.tr.FixedTraces.size == 0:
+                parent.tr.FixedTraces = np.zeros((0,Trace.size))
+            parent.tr.FixedTraces = np.append(parent.tr.FixedTraces, parent.tr.load_Traces(mass)[None,:], axis=0)
+        else:
+            #if it is already in fixed -> delete it
+            # add the mass to fixed
+            item.setBackground(QColor(255, 255, 255))
+            index_of_deletion = np.where(self.fixedMasses == mass)
+            self.fixedMasses = np.delete(self.fixedMasses, index_of_deletion)
+            self.fixedcompositions = np.delete(self.fixedcompositions , index_of_deletion, axis = 0)
+            parent.tr.FixedTraces = np.delete(parent.tr.FixedTraces , index_of_deletion, axis = 0)
+
+
+        parent.update_plots()
+
+
 
 def get_names_out_of_element_numbers(compound_array):
     # only if any compounds are in compound array give a string

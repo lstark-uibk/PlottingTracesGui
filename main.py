@@ -175,6 +175,7 @@ class MainWindow(QtWidgets.QMainWindow):
                               "sub_spectrum_color": (103, 42, 201, 80),
                               "color_cycle": ['r', 'g', 'b', 'c', 'm', 'y'],
                               "current_color": 0,
+                              "current_color_fixed": 0,
                               "background_color": "w",
                               "show_plots": [True,False,False,False], #plots corresponding to [avg spectrum, min spec, max spect, subspectr]
                               "avg": False,
@@ -187,13 +188,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.subspec_plot = []
         self.jumping_possible = True
 
+
     def init_UI_file_loaded(self):
         #add functionality to:
         #slider
         # masslist shown on left
         self.masslist_widget.redo_qlist(self.tr.MasslistMasses, self.tr.MasslistCompositions)
         self.masslist_widget.itemChanged.connect(lambda: self.masslist_widget.masslist_tick_changed(self))
-       #jump to mass widget
+        self.masslist_widget.itemDoubleClicked.connect(lambda item: self.masslist_widget.handle_double_click(item, parent=self))
+
+        #jump to mass widget
         self.jump_to_mass_input.returnPressed.connect(lambda: self.masslist_widget.jump_to_mass(self.jump_to_mass_input.text(),self))
         self.jump_to_compound_button.pressed.connect(lambda: self.masslist_widget.jump_to_compound(self.jump_to_compound_input.text(),self))
         self.jump_to_compound_input.returnPressed.connect(lambda: self.masslist_widget.jump_to_compound(self.jump_to_compound_input.text(),self))
@@ -285,6 +289,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def update_plots(self):
         # set the restrictions on the movement
         self.remove_all_plot_items()
+        print(self.tr.Traces.shape, self.masslist_widget.currentcompositions)
         for (trace,composition) in zip(self.tr.Traces,self.masslist_widget.currentcompositions):
             current_color = self.plot_settings["color_cycle"][self.plot_settings["current_color"]]
             self.spectrumplot = self.graphWidget.plot(self.tr.Times, trace,
@@ -293,7 +298,17 @@ class MainWindow(QtWidgets.QMainWindow):
             if self.plot_settings["current_color"] < len(self.plot_settings["color_cycle"])-1:
                 self.plot_settings["current_color"] += 1
             else: self.plot_settings["current_color"] = 0
+        if self.masslist_widget.fixedMasses.size != 0:
+            for (trace,composition) in zip(self.tr.FixedTraces,self.masslist_widget.fixedcompositions):
+                current_color = self.plot_settings["color_cycle"][self.plot_settings["current_color_fixed"]]
+                self.spectrumplot = self.graphWidget.plot(self.tr.Times, trace,
+                                                      pen=pg.mkPen(current_color, width=2),
+                                                      name=to.get_names_out_of_element_numbers(composition))
+                if self.plot_settings["current_color_fixed"] < len(self.plot_settings["color_cycle"])-1:
+                    self.plot_settings["current_color_fixed"] += 1
+                else: self.plot_settings["current_color_fixed"] = 0
         self.plot_settings["current_color"] = 0
+        self.plot_settings["current_color_fixed"] = 0
         self.vb.autoRange()
 
 
