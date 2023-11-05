@@ -7,6 +7,8 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 import sys
 import trace_objects as to
 import pyqt_objects as po
+from PyQt5.QtGui import QRegExpValidator
+
 
 
 class Worker(QRunnable):
@@ -63,12 +65,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.verticalLayout2 = QtWidgets.QVBoxLayout()  #laout on the right with the graph
         self.jump_to_mass_layout = QtWidgets.QHBoxLayout()
         self.jump_to_compound_layout = QtWidgets.QHBoxLayout()
+        self.multiple_check_layout = QtWidgets.QHBoxLayout()
 
 
         self.horizontalLayout.addLayout(self.verticalLayout1)
         self.horizontalLayout.addLayout(self.verticalLayout2)
         self.horizontalLayout.setStretch(0, 1)
         self.horizontalLayout.setStretch(1,7)
+        self.verticalLayout1.addLayout(self.multiple_check_layout)
         self.verticalLayout1.addLayout(self.jump_to_mass_layout)
         self.verticalLayout1.addLayout(self.jump_to_compound_layout)
 
@@ -78,8 +82,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.graphWidget.setAxisItems({'bottom': axis})
         self.verticalLayout2.addWidget(self.graphWidget)
 
+        self.multiple_check = QtWidgets.QLineEdit()
+        regex = QRegExp(r'^-?\d+(-\d+)?$')
+        # Create a validator based on the regular expression
+        validator = QRegExpValidator(regex, self.multiple_check)
+        self.multiple_check.setValidator(validator)
+        multiple_check_label = QtWidgets.QLabel("Select Multiple Traces (e.g. 1-10)")
+        self.multiple_check_OK_Button = QtWidgets.QPushButton("OK")
+        self.multiple_check_layout.addWidget(multiple_check_label)
+        self.multiple_check_layout.addWidget(self.multiple_check)
+        self.multiple_check_layout.addWidget(self.multiple_check_OK_Button)
+
         # list of masses
-        self.masslist_widget = to.QlistWidget_Msasslist(self,[],[])
+        self.masslist_widget = to.QlistWidget_Masslist(self,[],[])
 
         self.label_jump_mass = QtWidgets.QLabel("Jump to mass: ")
         self.jump_to_mass_input = QtWidgets.QLineEdit()
@@ -117,7 +132,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.overallverticallayout.addWidget(menubar)
         self.overallverticallayout.addLayout(self.horizontalLayout)
         self.verticalLayout1.addWidget(self.masslist_widget)
-
         self.setCentralWidget(self.centralwidget)
 
     def open_file(self):
@@ -162,13 +176,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.subspec_plot = []
         self.jumping_possible = True
 
-
     def init_UI_file_loaded(self):
         #add functionality to:
         #slider
         # masslist shown on left
         self.masslist_widget.redo_qlist(self.tr.MasslistMasses, self.tr.MasslistCompositions)
-        self.masslist_widget.itemChanged.connect(self.masslist_tick_changed)
+        self.masslist_widget.itemChanged.connect(lambda: self.masslist_tick_changed(load = self.masslist_widget.load_on_tick))
         self.masslist_widget.itemClicked.connect(self.jump_to_mass)
         #jump to mass widget
         self.jump_to_mass_input.textChanged.connect(self.jump_to_mass)
@@ -179,6 +192,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plotsettings_window = po.PlotSettingsWindow(self)
         self.plotsettings_button.triggered.connect(self.plotsettings_window.show)
 
+        self.multiple_check_OK_Button.pressed.connect(self.pressed)
+        self.multiple_check.returnPressed.connect(self.pressed)
+
+    def pressed(self):
+        print(self.multiple_check.text())
+        print(self.multiple_check.text().split("-"))
+        borders = self.multiple_check.text().split("-")
+        if len(borders) == 2:
+            lower, upper = borders
+            lower = int(lower +1)
+            upper = int(upper+1)
+            if lower < upper:
+                print(lower, upper)
+                self.masslist_widget.check_multiple(lower,upper,self)
 
     def init_plots(self):
         # Enable antialiasing for prettier plots
@@ -190,7 +217,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.graphWidget.addLegend()
         # make bg plots
         # pyqtgraph_objects.replot_spectra(self,self.plot_settings["show_plots"])
-        self.update_plots()
+
         # set the restrictions on the movement
         self.vb = self.graphWidget.getViewBox()
         self.vb.autoRange()
@@ -202,12 +229,14 @@ class MainWindow(QtWidgets.QMainWindow):
         # when xrange changed make the following
         # to signals and slots: https://www.tutorialspoint.com/pyqt/pyqt_signals_and_slots.htm#:~:text=Each%20PyQt%20widget%2C%20which%20is,%27%20to%20a%20%27slot%27.
         self.vb.sigXRangeChanged.connect(lambda: self.on_xlims_changed(self.vb))
-
-    def masslist_tick_changed(self):
-        self.masslist_widget.tick_changed()
-        self.tr.update_Traces(self.masslist_widget.currentmasses)
         self.update_plots()
-        self.vb.autoRange()
+
+    def masslist_tick_changed(self,load = True):
+        if load:
+            self.masslist_widget.tick_changed()
+            self.tr.update_Traces(self.masslist_widget.currentmasses)
+            self.update_plots()
+
 
     def remove_all_plot_items(self):
         """remove all plot_items in the graphWidget
@@ -251,8 +280,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.remove_all_plot_items()
         for (trace,composition) in zip(self.tr.Traces,self.masslist_widget.currentcompositions):
             current_color = self.plot_settings["color_cycle"][self.plot_settings["current_color"]]
-            print("color",current_color)
-            print(to.get_names_out_of_element_numbers(composition))
             self.spectrumplot = self.graphWidget.plot(self.tr.Times, trace,
                                                   pen=pg.mkPen(current_color),
                                                   name=to.get_names_out_of_element_numbers(composition))
@@ -260,6 +287,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.plot_settings["current_color"] += 1
             else: self.plot_settings["current_color"] = 0
         self.plot_settings["current_color"] = 0
+        self.vb.autoRange()
     def jump_to_mass(self, event):
         pass
         # if type(event) is str:

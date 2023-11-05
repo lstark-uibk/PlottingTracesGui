@@ -154,20 +154,20 @@ class QlistWidget_Masslist(QListWidget):
         self.compsitions = Compositions
         self.currentmasses = np.array([])
         self.currentcompositions = np.zeros((0, 8))
+        self.load_on_tick = True
+
 
     def tick_changed(self):
-        print(self.masses)
         self.currentmasses = np.array([])
         self.currentcompositions = np.zeros((0, 8))
+
         for i in range(self.count()):
             item = self.item(i)
             state = item.checkState()
             if state == 2:
                 self.currentmasses = np.append(self.currentmasses,self.masses[i])
-                print("comp",self.currentcompositions, self.compsitions[i,:])
                 self.currentcompositions = np.append(self.currentcompositions, [self.compsitions[i,:]], axis=0)
-                print(self.currentmasses)
-                print(self.currentcompositions)
+
 
     def redo_qlist(self,MasslistMasses,MasslistCompositions):
         '''Update the List on the right side of the Plot
@@ -188,6 +188,23 @@ class QlistWidget_Masslist(QListWidget):
             item.setFlags(item.flags() | 1)  # Add the Qt.ItemIsUserCheckable flag
             item.setCheckState(0)  # 0 for Unchecked, 2 for Checked
             self.addItem(item)
+
+    def check_multiple(self,lower, upper,parent):
+        """
+
+        :param checkstate: True or False
+        :return:
+        """
+        self.load_on_tick = False
+        for i in range(lower,upper):
+            item = self.item(i)
+            item.setCheckState(Qt.Checked)
+            self.currentmasses = np.append(self.currentmasses, self.masses[i])
+            self.currentcompositions = np.append(self.currentcompositions, [self.compsitions[i, :]], axis=0)
+        self.load_on_tick = True
+
+        parent.tr.update_Traces(self.currentmasses)
+        parent.update_plots()
 
 
 def get_names_out_of_element_numbers(compound_array):
