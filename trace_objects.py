@@ -30,13 +30,14 @@ class Traces():
         self.filename = Filename
         self.starttime = startTime
         self.endtime = endTime
-        self.useaveragesonly = useAveragesOnly
-        self.raw = Raw
-        self._init_information(self.filename,useAveragesOnly=useAveragesOnly)
+        self.raw = True
+        self.useaveragesonly = False
+
+        self._init_information()
 
 
-    def _init_information(self, filename, useAveragesOnly = True, raw = False):
-        self.filename = filename
+
+    def _init_information(self):
         with h5py.File(self.filename, "r") as f:
             from_timestamp_vec = np.vectorize(lambda x: QDateTime.fromSecsSinceEpoch(int(round(x))))
             # self.Times = from_timestamp_vec(self.Times)
@@ -80,7 +81,6 @@ class Traces():
         :return:
         """
 
-        dsTexists = False
         filename = self.filename
         if isinstance(massesToLoad, np.ndarray) or isinstance(massesToLoad,(float,int)):
             Massestoloadindices = np.where(np.any((np.isclose(self.MasslistMasses[:, None], massesToLoad , rtol=1e-5, atol=1e-8)),axis=1))[0]
@@ -130,18 +130,9 @@ class Traces():
                     else:
                         print("No high time resolution available, is this a average only file?")
                         ds = f["CorrAvgStickCps"]
-                    if "CorrStickCpsT" in f:
-                        print("A transposed dataset for faster loading is available.")
-                        dsT = f["CorrStickCpsT"]
-                        dsTexists = True
-                    else:
-                        print(
-                            "Transposed dataset for faster loading is NOT available. You can create one with ResultFileFunctions.transposeStickCps(filename).")
 
-            if not dsTexists:
-                self.Traces = ds[:,self.Timeindices][Massestoloadindices,:]
-            else:
-                self.Traces = dsT[self.Timeindices,:][:,Massestoloadindices]
+            self.Traces = ds[:,self.Timeindices][Massestoloadindices,:]
+
             return self.Traces
             # get all the indices of massesToLoad
 
@@ -157,16 +148,7 @@ class QlistWidget_Masslist(QListWidget):
         self.load_on_tick = True
 
 
-    def tick_changed(self):
-        self.currentmasses = np.array([])
-        self.currentcompositions = np.zeros((0, 8))
 
-        for i in range(self.count()):
-            item = self.item(i)
-            state = item.checkState()
-            if state == 2:
-                self.currentmasses = np.append(self.currentmasses,self.masses[i])
-                self.currentcompositions = np.append(self.currentcompositions, [self.compsitions[i,:]], axis=0)
 
 
     def redo_qlist(self,MasslistMasses,MasslistCompositions):
@@ -183,18 +165,66 @@ class QlistWidget_Masslist(QListWidget):
         self.masses = MasslistMasses
         self.compsitions = MasslistCompositions
         self.clear()
-        for mass,element_numbers in zip(MasslistMasses, MasslistCompositions):
-            item = QListWidgetItem(str(round(mass,6)) + "  " + get_names_out_of_element_numbers(element_numbers))
+        for index , (mass,element_numbers) in enumerate(zip(MasslistMasses, MasslistCompositions)):
+            index += 1
+            item = QListWidgetItem(f"{str(index)}\t{str(round(mass,6))} {get_names_out_of_element_numbers(element_numbers)}")
             item.setFlags(item.flags() | 1)  # Add the Qt.ItemIsUserCheckable flag
             item.setCheckState(0)  # 0 for Unchecked, 2 for Checked
             self.addItem(item)
+    def jump_to_mass(self, event, parent):
+        borders = event.split("-")
+        print(borders)
+        if len(borders) == 1:
+            mass = float(event)
+            mass_difference = np.abs(self.masses - mass)
+            # Find the index of the nearest entry
+            index_of_nearest = np.argmin(mass_difference)
+            self.setCurrentItem(self.item(index_of_nearest))
+            self.check_single(index_of_nearest,parent)
+        elif len(borders) == 2:
+            lowermass, uppermass = borders
+            lowermass = float(lowermass)
+            uppermass = float(uppermass)
+            if lowermass < uppermass:
+                lower_index = np.argmin(np.abs(self.masses - lowermass))
+                upper_index = np.argmin(np.abs(self.masses - uppermass))
+                self.setCurrentItem(self.item(lower_index))
+                self.check_multiple(lower_index,upper_index,parent)
+    def jump_to_compound(self,compoundstring,parent):
+        mass, elementnumber = get_element_numbers_out_of_names(compoundstring)
+        self.jump_to_mass(str(mass),parent)
+    def masslist_tick_changed(self,parent):
+        if self.load_on_tick:
+            self.currentmasses = np.array([])
+            self.currentcompositions = np.zeros((0, 8))
 
+            for i in range(self.count()):
+                item = self.item(i)
+                state = item.checkState()
+                if state == 2:
+                    self.currentmasses = np.append(self.currentmasses, self.masses[i])
+                    self.currentcompositions = np.append(self.currentcompositions, [self.compsitions[i, :]], axis=0)
+
+            parent.tr.update_Traces(self.currentmasses)
+            parent.update_plots()
+
+    def check_single(self, index, parent):
+        item = self.item(index)
+        item.setCheckState(Qt.Checked)
+        self.currentmasses = np.append(self.currentmasses, self.masses[index])
+        self.currentcompositions = np.append(self.currentcompositions, [self.compsitions[index, :]], axis=0)
+
+        parent.tr.update_Traces(self.currentmasses)
+        parent.update_plots()
     def check_multiple(self,lower, upper,parent):
         """
 
         :param checkstate: True or False
         :return:
         """
+        if upper-lower > 100:
+            print("Too many traces selected, only plot first 100")
+            upper = lower + 100
         self.load_on_tick = False
         for i in range(lower,upper):
             item = self.item(i)
@@ -202,6 +232,7 @@ class QlistWidget_Masslist(QListWidget):
             self.currentmasses = np.append(self.currentmasses, self.masses[i])
             self.currentcompositions = np.append(self.currentcompositions, [self.compsitions[i, :]], axis=0)
         self.load_on_tick = True
+
 
         parent.tr.update_Traces(self.currentmasses)
         parent.update_plots()
@@ -327,7 +358,7 @@ def get_element_numbers_out_of_names(namestring):
         if np.any(element_lower == elementsinstring_lower):
             compound_array[index] = numbers[element_lower == elementsinstring_lower]
 
-    mass = np.sum(compound_array*Traces.MassElementsMasses)
+    mass = np.sum(compound_array*Traces.MasslistElementsMasses)
     return mass, compound_array
 
 

@@ -1,34 +1,37 @@
-from PyQt5.QtWidgets import QMainWindow
-class PlotSettingsWindow(QMainWindow):
+import PyQt5.QtWidgets as QtWidgets
+class PlotSettingsWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
-        pass
-        # super(PlotSettingsWindow, self).__init__(parent)
-        # self.centralWidget = QtWidgets.QWidget(self)
-        # self.centralLayout = QtWidgets.QVBoxLayout(self.centralWidget)
-        # self.parent = parent
-        #
-        # # here I have to use a checkbox not a radiobutton because radionbuttons are exclusively only one on
-        # Checkbox = QtWidgets.QCheckBox("Show Min/Max Spectrum")
-        # Checkbox.setChecked(False)
-        # Checkbox.stateChanged.connect(lambda: self.onClick([1,2]))
-        # self.centralLayout.addWidget(Checkbox)
-        #
-        # Checkbox1 = QtWidgets.QCheckBox("Show Subspectra")
-        # Checkbox1.setChecked(False)
-        # Checkbox1.stateChanged.connect(lambda: self.onClick([3]))
-        #
-        # self.centralLayout.addWidget(Checkbox1)
-        # self.setCentralWidget(self.centralWidget)
+        super(PlotSettingsWindow, self).__init__(parent)
+        self.centralWidget = QtWidgets.QWidget(self)
+        self.centralLayout = QtWidgets.QVBoxLayout(self.centralWidget)
+        self.parent = parent
 
-    def onClick(self, index):
-        pass
-        # if self.parent.file_loaded:
-        #     checkbox = self.sender()
-        #     if checkbox.isChecked():
-        #         for i in index:
-        #             self.parent.plot_settings["show_plots"][i] = True
-        #     if not checkbox.isChecked():
-        #         for i in index:
-        #             self.parent.plot_settings["show_plots"][i] = False
-        #     # print(self.parent.plot_settings["show_plots"])
-        #     pyqtgraph_objects.replot_spectra(self.parent,self.parent.plot_settings["show_plots"])
+        # here I have to use a checkbox not a radiobutton because radionbuttons are exclusively only one on
+        Checkbox = QtWidgets.QCheckBox("Show high time resolution Spectra")
+        Checkbox.setChecked(True)
+        Checkbox.stateChanged.connect(self.set_high_time_res)
+        self.centralLayout.addWidget(Checkbox)
+
+        Checkbox1 = QtWidgets.QCheckBox("Take raw data")
+        Checkbox1.setChecked(True)
+        Checkbox1.stateChanged.connect(self.set_raw)
+
+        self.centralLayout.addWidget(Checkbox1)
+        self.setCentralWidget(self.centralWidget)
+
+    def set_high_time_res(self):
+        checkbox = self.sender()
+        if checkbox.isChecked():
+            self.parent.tr.useaveragesonly = False
+        else:
+            self.parent.tr.useaveragesonly = True
+        self.parent.tr.update_Times_Traces(self.parent.masslist_widget.currentmasses)
+        self.parent.update_plots()
+    def set_raw(self):
+        checkbox = self.sender()
+        if checkbox.isChecked():
+            self.parent.tr.raw = True
+        else:
+            self.parent.tr.raw = False
+        self.parent.tr.update_Times_Traces(self.parent.masslist_widget.currentmasses)
+        self.parent.update_plots()

@@ -46,6 +46,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
         print("Initializing Window")
+        self.setWindowTitle("PlottingTracesGui")
+
         self.threadpool = QThreadPool()
         self.threadpool.setMaxThreadCount(1)
         # self.filename = "C://Users//peaq//Uniarbeit//Python//Manual_Pyeakfitter//_result_no_masslist.hdf5"
@@ -87,28 +89,36 @@ class MainWindow(QtWidgets.QMainWindow):
         # Create a validator based on the regular expression
         validator = QRegExpValidator(regex, self.multiple_check)
         self.multiple_check.setValidator(validator)
-        multiple_check_label = QtWidgets.QLabel("Select Multiple Traces (e.g. 1-10)")
+        multiple_check_label = QtWidgets.QLabel("Select traces (e.g. 1-10)")
         self.multiple_check_OK_Button = QtWidgets.QPushButton("OK")
         self.deselect_all =  QtWidgets.QPushButton("Deselect all")
         self.multiple_check_layout.addWidget(multiple_check_label)
         self.multiple_check_layout.addWidget(self.multiple_check)
-        self.multiple_check_layout.addWidget(self.multiple_check_OK_Button)
+        # self.multiple_check_layout.addWidget(self.multiple_check_OK_Button)
         self.multiple_check_layout.addWidget(self.deselect_all)
 
         # list of masses
         self.masslist_widget = to.QlistWidget_Masslist(self,[],[])
 
-        self.label_jump_mass = QtWidgets.QLabel("Jump to mass: ")
+        self.label_jump_mass = QtWidgets.QLabel("Select masses (e.g. 69.420-70): ")
         self.jump_to_mass_input = QtWidgets.QLineEdit()
-        self.jump_to_mass_input.setValidator(QtGui.QDoubleValidator(0., 500., 4))
-        self.label_jump_compound = QtWidgets.QLabel("Jump to compound: ")
+        regexmass = QRegExp(r'^\d+(\.\d*)?(-(\d+)(\.\d*)?)?$')
+        validator = QRegExpValidator(regexmass, self.jump_to_mass_input)
+        self.jump_to_mass_input.setValidator(validator)
+        self.jump_to_mass_layout.addWidget(self.label_jump_mass)
+        self.jump_to_mass_layout.addWidget(self.jump_to_mass_input)
+
+        self.label_jump_compound = QtWidgets.QLabel("Select compound (e.g. H3O+): ")
         self.jump_to_compound_input = QtWidgets.QLineEdit()
+        regexcomp = QRegExp(r'^(([a-zA-Z]+)(\d+)?)+\+$')
+        validatorcomp = QRegExpValidator(regexcomp, self.jump_to_compound_input)
+        self.jump_to_compound_input.setValidator(validatorcomp)
         self.jump_to_compound_button = QtWidgets.QPushButton("OK")
         self.jump_to_mass_layout.addWidget(self.label_jump_mass)
         self.jump_to_mass_layout.addWidget(self.jump_to_mass_input)
         self.jump_to_compound_layout.addWidget(self.label_jump_compound)
         self.jump_to_compound_layout.addWidget(self.jump_to_compound_input)
-        self.jump_to_compound_layout.addWidget(self.jump_to_compound_button)
+        # self.jump_to_compound_layout.addWidget(self.jump_to_compound_button)
 
         # create menu
         menubar = QtWidgets.QMenuBar()
@@ -171,7 +181,6 @@ class MainWindow(QtWidgets.QMainWindow):
                               "raw": True
                               }
         self.tr = to.Traces(self.filename,useAveragesOnly=self.plot_settings["avg"], Raw=self.plot_settings["raw"])
-        self.tr.update_Traces(np.array([19.017856,  21.022096,  27.022936]))
         self.spectrumplot = []
         self.spectrum_max_plot = []
         self.spectrum_min_plot = []
@@ -183,32 +192,21 @@ class MainWindow(QtWidgets.QMainWindow):
         #slider
         # masslist shown on left
         self.masslist_widget.redo_qlist(self.tr.MasslistMasses, self.tr.MasslistCompositions)
-        self.masslist_widget.itemChanged.connect(lambda: self.masslist_tick_changed(load = self.masslist_widget.load_on_tick))
-        self.masslist_widget.itemClicked.connect(self.jump_to_mass)
-        #jump to mass widget
-        self.jump_to_mass_input.textChanged.connect(self.jump_to_mass)
-        self.jump_to_compound_button.pressed.connect(lambda: self.jump_to_compound(self.jump_to_compound_input.text()))
-        self.jump_to_compound_input.returnPressed.connect(lambda: self.jump_to_compound(self.jump_to_compound_input.text()))
+        self.masslist_widget.itemChanged.connect(lambda: self.masslist_widget.masslist_tick_changed(self))
+       #jump to mass widget
+        self.jump_to_mass_input.returnPressed.connect(lambda: self.masslist_widget.jump_to_mass(self.jump_to_mass_input.text(),self))
+        self.jump_to_compound_button.pressed.connect(lambda: self.masslist_widget.jump_to_compound(self.jump_to_compound_input.text(),self))
+        self.jump_to_compound_input.returnPressed.connect(lambda: self.masslist_widget.jump_to_compound(self.jump_to_compound_input.text(),self))
         #menubar stuff
 
         self.plotsettings_window = po.PlotSettingsWindow(self)
         self.plotsettings_button.triggered.connect(self.plotsettings_window.show)
 
-        self.multiple_check_OK_Button.pressed.connect(self.pressed)
-        self.multiple_check.returnPressed.connect(self.pressed)
+        self.multiple_check_OK_Button.pressed.connect(self.multiple_check_pressed)
+        self.multiple_check.returnPressed.connect(self.multiple_check_pressed)
         self.deselect_all.pressed.connect(lambda: self.masslist_widget.uncheck_all(self))
 
-    def pressed(self):
-        print(self.multiple_check.text())
-        print(self.multiple_check.text().split("-"))
-        borders = self.multiple_check.text().split("-")
-        if len(borders) == 2:
-            lower, upper = borders
-            lower = int(lower) +1
-            upper = int(upper) 
-            if lower < upper:
-                print(lower, upper)
-                self.masslist_widget.check_multiple(lower,upper,self)
+
 
     def init_plots(self):
         # Enable antialiasing for prettier plots
@@ -234,13 +232,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.vb.sigXRangeChanged.connect(lambda: self.on_xlims_changed(self.vb))
         self.update_plots()
 
-    def masslist_tick_changed(self,load = True):
-        if load:
-            self.masslist_widget.tick_changed()
-            self.tr.update_Traces(self.masslist_widget.currentmasses)
-            self.update_plots()
-
-
+    def multiple_check_pressed(self):
+        print(self.multiple_check.text().split("-"))
+        borders = self.multiple_check.text().split("-")
+        if len(borders) == 1:
+            index = int(borders[0]) + 1
+            self.masslist_widget.check_single(index,self)
+        if len(borders) == 2:
+            lower, upper = borders
+            lower = int(lower) +1
+            upper = int(upper)
+            if lower < upper:
+                print(lower, upper)
+                self.masslist_widget.check_multiple(lower,upper,self)
     def remove_all_plot_items(self):
         """remove all plot_items in the graphWidget
 
@@ -291,8 +295,8 @@ class MainWindow(QtWidgets.QMainWindow):
             else: self.plot_settings["current_color"] = 0
         self.plot_settings["current_color"] = 0
         self.vb.autoRange()
-    def jump_to_mass(self, event):
-        print(event)
+
+
         # if type(event) is str:
         #     mass = float(event)
         # elif type(event) is float:
@@ -307,12 +311,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # newxlims = (target_mass - xrange/2 , target_mass + xrange/2)
         # self.vb.setXRange(*newxlims, padding = 0)
 
-    def jump_to_compound(self,compoundstring):
-        pass
-        # mass, compound = mo.get_element_numbers_out_of_names(compoundstring)
-        # self.jump_to_mass(float(mass))
-        # if not (self.ml.suggestions.element_numbers == compound).all(axis=1).any():
-        #     self.ml.add_suggestion_to_sugglist(self, compound)
+
 
 
 
