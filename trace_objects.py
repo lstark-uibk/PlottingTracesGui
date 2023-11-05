@@ -205,7 +205,18 @@ class QlistWidget_Masslist(QListWidget):
 
         parent.tr.update_Traces(self.currentmasses)
         parent.update_plots()
-
+        
+    def uncheck_all(self,parent):
+        self.load_on_tick = False
+        for i in range(self.count()):
+            item = self.item(i)
+            item.setCheckState(Qt.Unchecked)
+        self.load_on_tick = True
+        self.currentmasses = np.array([])
+        self.currentcompositions = np.zeros((0, 8))
+        
+        parent.tr.update_Traces(self.currentmasses)
+        parent.update_plots()
 
 def get_names_out_of_element_numbers(compound_array):
     # only if any compounds are in compound array give a string

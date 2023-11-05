@@ -89,9 +89,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.multiple_check.setValidator(validator)
         multiple_check_label = QtWidgets.QLabel("Select Multiple Traces (e.g. 1-10)")
         self.multiple_check_OK_Button = QtWidgets.QPushButton("OK")
+        self.deselect_all =  QtWidgets.QPushButton("Deselect all")
         self.multiple_check_layout.addWidget(multiple_check_label)
         self.multiple_check_layout.addWidget(self.multiple_check)
         self.multiple_check_layout.addWidget(self.multiple_check_OK_Button)
+        self.multiple_check_layout.addWidget(self.deselect_all)
 
         # list of masses
         self.masslist_widget = to.QlistWidget_Masslist(self,[],[])
@@ -194,6 +196,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.multiple_check_OK_Button.pressed.connect(self.pressed)
         self.multiple_check.returnPressed.connect(self.pressed)
+        self.deselect_all.pressed.connect(lambda: self.masslist_widget.uncheck_all(self))
 
     def pressed(self):
         print(self.multiple_check.text())
@@ -201,8 +204,8 @@ class MainWindow(QtWidgets.QMainWindow):
         borders = self.multiple_check.text().split("-")
         if len(borders) == 2:
             lower, upper = borders
-            lower = int(lower +1)
-            upper = int(upper+1)
+            lower = int(lower) +1
+            upper = int(upper) 
             if lower < upper:
                 print(lower, upper)
                 self.masslist_widget.check_multiple(lower,upper,self)
@@ -289,7 +292,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plot_settings["current_color"] = 0
         self.vb.autoRange()
     def jump_to_mass(self, event):
-        pass
+        print(event)
         # if type(event) is str:
         #     mass = float(event)
         # elif type(event) is float:
