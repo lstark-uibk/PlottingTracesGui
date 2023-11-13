@@ -68,6 +68,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.jump_to_mass_layout = QtWidgets.QHBoxLayout()
         self.jump_to_compound_layout = QtWidgets.QHBoxLayout()
         self.multiple_check_layout = QtWidgets.QHBoxLayout()
+        self.sorting_layout = QtWidgets.QHBoxLayout()
 
 
         self.horizontalLayout.addLayout(self.verticalLayout1)
@@ -77,6 +78,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.verticalLayout1.addLayout(self.multiple_check_layout)
         self.verticalLayout1.addLayout(self.jump_to_mass_layout)
         self.verticalLayout1.addLayout(self.jump_to_compound_layout)
+        self.verticalLayout1.addLayout(self.sorting_layout)
 
         # plot widget for the verticalLayout2
         self.graphWidget = pg.PlotWidget()
@@ -120,6 +122,36 @@ class MainWindow(QtWidgets.QMainWindow):
         self.jump_to_compound_layout.addWidget(self.jump_to_compound_input)
         # self.jump_to_compound_layout.addWidget(self.jump_to_compound_button)
 
+        def sort_on_mass(masses):
+            sorted = np.argsort(masses)
+            return sorted
+        self.sort_mass = to.Sorting(self,self.sorting_layout, sort_on_mass, "Sort masses")
+
+        def sort_biggest_relative_difference(traces):
+            if traces.ndim == 3:
+                traces = traces[0]
+            rel_diffs = np.empty(traces.shape[0])
+            for i, trace in enumerate(traces):
+                if np.mean(trace) > 0.7 * np.std(trace):
+                    #preselect for noise
+                    biggestdiff = np.ptp(trace)
+                    mean = np.mean(trace)
+                    rel_diff = biggestdiff / mean
+                    rel_diffs[i] = rel_diff
+                else: rel_diffs[i] = 0
+            sorted = np.argsort(rel_diffs)[::-1]
+            return sorted
+        self.sort_rel = to.Sorting(self, self.sorting_layout, sort_biggest_relative_difference, "Sorting on highest rel diff")
+
+        def sorting_max(traces):
+            if traces.ndim == 3:
+                traces = traces[0]
+            means = np.mean(traces, axis=1)
+            sorted = np.argsort(means)
+            sorted = sorted[::-1]
+            return sorted
+        self.sort_max = to.Sorting(self,self.sorting_layout,sorting_max, "Sorting on highest trace")
+        
         # create menu
         menubar = QtWidgets.QMenuBar()
         self.actionFile = menubar.addMenu("File")
@@ -201,6 +233,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.jump_to_mass_input.returnPressed.connect(lambda: self.masslist_widget.jump_to_mass(self.jump_to_mass_input.text(),self))
         self.jump_to_compound_button.pressed.connect(lambda: self.masslist_widget.jump_to_compound(self.jump_to_compound_input.text(),self))
         self.jump_to_compound_input.returnPressed.connect(lambda: self.masslist_widget.jump_to_compound(self.jump_to_compound_input.text(),self))
+
+
+        # #sorting widgets - give sorting function define sorting object,
+        self.sort_max.sortingbutton.pressed.connect(lambda: self.sort_max.sort_qlist(self.masslist_widget,self.tr.load_Traces("all")))
+        self.sort_rel.sortingbutton.pressed.connect(lambda : self.sort_rel.sort_qlist(self.masslist_widget,self.tr.load_Traces("all")))
+        self.sort_mass.sortingbutton.pressed.connect(lambda: self.sort_mass.sort_qlist(self.masslist_widget,self.tr.MasslistMasses) )
         #menubar stuff
 
         self.plotsettings_window = po.PlotSettingsWindow(self)
@@ -240,12 +278,12 @@ class MainWindow(QtWidgets.QMainWindow):
         print(self.multiple_check.text().split("-"))
         borders = self.multiple_check.text().split("-")
         if len(borders) == 1:
-            index = int(borders[0]) + 1
+            index = int(borders[0]) -1
             self.masslist_widget.check_single(index,self)
         if len(borders) == 2:
             lower, upper = borders
-            lower = int(lower) +1
-            upper = int(upper)
+            lower = int(lower) -1
+            upper = int(upper) -1
             if lower < upper:
                 print(lower, upper)
                 self.masslist_widget.check_multiple(lower,upper,self)

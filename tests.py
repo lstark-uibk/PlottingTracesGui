@@ -1,29 +1,24 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QListWidget, QListWidgetItem, QMainWindow
-
-def handle_double_click(item):
-    print(f"Double-clicked: {item.text()}")
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QLabel
 
 app = QApplication(sys.argv)
+window = QWidget()
+window.setWindowTitle("Button with Wrapped Text")
 
-window = QMainWindow()
-window.setWindowTitle("Double-Click Example")
+layout = QVBoxLayout()
 
-list_widget = QListWidget(window)
+button = QPushButton("")
 
-# Add items to the QListWidget
-item1 = QListWidgetItem("Item 1")
-item2 = QListWidgetItem("Item 2")
-item3 = QListWidgetItem("Item 3")
+# Create a QLabel to display the text with word wrapping
+label = QLabel("This is a long text that should wrap to the next line if it's too long for the button's width.")
+label.setWordWrap(True)  # Enable text wrapping
 
-list_widget.addItem(item1)
-list_widget.addItem(item2)
-list_widget.addItem(item3)
+layout.addWidget(label)
+layout.addWidget(button)
 
-# Connect the double-click event to the handle_double_click function
-list_widget.itemDoubleClicked.connect(handle_double_click)
+window.setLayout(layout)
 
-window.setCentralWidget(list_widget)
+window.setGeometry(100, 100, 400, 200)
 window.show()
 
 sys.exit(app.exec_())

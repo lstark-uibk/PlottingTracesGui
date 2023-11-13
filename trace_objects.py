@@ -3,7 +3,7 @@ import math
 import h5py
 import datetime
 from PyQt5.QtCore import QDateTime, Qt
-from PyQt5.QtWidgets import QListWidgetItem, QListWidget
+from PyQt5.QtWidgets import QListWidgetItem, QListWidget, QPushButton
 from PyQt5.QtGui import QColor
 import pyqtgraph as pg
 import re
@@ -146,8 +146,9 @@ class Traces():
 class QlistWidget_Masslist(QListWidget):
     def __init__(self, parent, Masses, Compositions):
         super().__init__(parent)
+        #this is the masses and compounds that will change during all the operations (like sorting etc
         self.masses = Masses
-        self.compsitions = Compositions
+        self.compositions = Compositions
         self.currentmasses = np.array([])
         self.currentcompositions = np.zeros((0, 8))
         self.load_on_tick = True
@@ -169,7 +170,7 @@ class QlistWidget_Masslist(QListWidget):
         None
         '''
         self.masses = MasslistMasses
-        self.compsitions = MasslistCompositions
+        self.compositions = MasslistCompositions
         self.clear()
         for index , (mass,element_numbers) in enumerate(zip(MasslistMasses, MasslistCompositions)):
             index += 1
@@ -209,7 +210,7 @@ class QlistWidget_Masslist(QListWidget):
                 state = item.checkState()
                 if state == 2:
                     self.currentmasses = np.append(self.currentmasses, self.masses[i])
-                    self.currentcompositions = np.append(self.currentcompositions, [self.compsitions[i, :]], axis=0)
+                    self.currentcompositions = np.append(self.currentcompositions, [self.compositions[i, :]], axis=0)
 
             parent.tr.update_Traces(self.currentmasses)
             parent.update_plots()
@@ -218,7 +219,7 @@ class QlistWidget_Masslist(QListWidget):
         item = self.item(index)
         item.setCheckState(Qt.Checked)
         self.currentmasses = np.append(self.currentmasses, self.masses[index])
-        self.currentcompositions = np.append(self.currentcompositions, [self.compsitions[index, :]], axis=0)
+        self.currentcompositions = np.append(self.currentcompositions, [self.compositions[index, :]], axis=0)
 
         parent.tr.update_Traces(self.currentmasses)
         parent.update_plots()
@@ -236,7 +237,7 @@ class QlistWidget_Masslist(QListWidget):
             item = self.item(i)
             item.setCheckState(Qt.Checked)
             self.currentmasses = np.append(self.currentmasses, self.masses[i])
-            self.currentcompositions = np.append(self.currentcompositions, [self.compsitions[i, :]], axis=0)
+            self.currentcompositions = np.append(self.currentcompositions, [self.compositions[i, :]], axis=0)
         self.load_on_tick = True
 
 
@@ -284,6 +285,28 @@ class QlistWidget_Masslist(QListWidget):
 
 
         parent.update_plots()
+
+class Sorting():
+    def __init__(self, window,layout, Sorting_function, text):
+        # so a sorting function should map a input corresponding to the masslist (e.g. all trace) to a list sorting the input
+        self.sorting_function = Sorting_function
+        self.sortingbutton = QPushButton(text, window)
+        self.sortingbutton.setGeometry(10, 10, 100, 100)
+        layout.addWidget(self.sortingbutton)
+
+    def sort_qlist(self,qlist,input_to_sortingfunc):
+        masses, compositions = qlist.masses, qlist.compositions
+        #first sort to masses, because traces re sorted to masses
+        sorted_masses = np.argsort(masses)
+        masses = masses[sorted_masses]
+        compositions = compositions[sorted_masses]
+        sorted = self.sorting_function(input_to_sortingfunc)
+        qlist.masses = masses[sorted]
+        qlist.compounds = compositions[sorted]
+        qlist.redo_qlist(qlist.masses,qlist.compounds)
+
+
+
 
 
 
