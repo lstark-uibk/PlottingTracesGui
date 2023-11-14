@@ -57,6 +57,7 @@ class Traces():
     def update_Times(self):
         with h5py.File(self.filename, "r") as f:
             print("Loading Times:")
+            timeshifthours = 1
             if self.useaveragesonly:
                 self.Times = f["AvgStickCpsTimes"][()]
             else:
@@ -64,12 +65,13 @@ class Traces():
                     self.Times = f["Times"][()]
                 except:
                     print("Could not load high res time, maybe this is an average-only result file?")
-                    return []
+                    return np.array([])
             if self.starttime < self.endtime:
                 self.Timeindices = np.where((self.Times >= self.starttime) & (self.Times <= self.endtime))[0]
                 self.Times = self.Times[self.Timeindices]
             else:
                 self.Timeindices = np.where(np.full(self.Times.shape, True))[0]
+            self.Times = self.Times - timeshifthours * 60*60
         return self.Times
 
     def load_Traces(self, massesToLoad = "none"):
